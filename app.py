@@ -10,7 +10,7 @@ model = load_model("modelo_uptc_chi.keras")
 scaler_X = joblib.load("scaler_X_uptc_chi.pkl")
 scaler_y = joblib.load("scaler_y_uptc_chi.pkl")
 
-X_COLS = scaler_X.feature_names_in_.tolist()
+X_COLS = list(scaler_X.feature_names_in_)
 
 @app.get("/")
 def root():
@@ -19,30 +19,33 @@ def root():
 @app.post("/predict")
 def predict(payload: dict):
     try:
-        short_w = payload["short_window"]
-        long_w = payload["long_window"]
+        short_window = payload["short_window"]
+        long_window = payload["long_window"]
         lags = payload["lags"]
 
-        if len(short_w) != 48 or len(long_w) != 168:
+        if len(short_window) != 48 or len(long_window) != 168:
             raise HTTPException(
                 status_code=400,
                 detail="short_window debe tener 48 registros y long_window 168 registros"
             )
 
-        df_short = pd.DataFrame(short_w)
-        df_long = pd.DataFrame(long_w)
+        df_short = pd.DataFrame(short_window)
+        df_long = pd.DataFrame(long_window)
 
         for col in X_COLS:
-            if col not in df_short:
+            if col not in df_short.columns:
                 df_short[col] = 0.0
-            if col not in df_long:
+            if col not in df_long.columns:
                 df_long[col] = 0.0
 
         df_short = df_short[X_COLS]
         df_long = df_long[X_COLS]
 
-        Xs = scaler_X.transform(df_short).astype(np.float32).reshape(1, 48, len(X_COLS))
-        Xl = scaler_X.transform(df_long).astype(np.float32).reshape(1, 168, len(X_COLS))
+        Xs = scaler_X.transform(df_short).astype(np.float32)
+        Xl = scaler_X.transform(df_long).astype(np.float32)
+
+        Xs = Xs.reshape(1, 48, len(X_COLS))
+        Xl = Xl.reshape(1, 168, len(X_COLS))
         Xlag = np.array(lags, dtype=np.float32).reshape(1, 2)
 
         y_pred = model.predict([Xs, Xl, Xlag], verbose=0)
